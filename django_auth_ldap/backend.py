@@ -60,7 +60,16 @@ from django.contrib.auth.models import User, Group, Permission, SiteProfileNotAv
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 import django.dispatch
-
+try:
+    from django.utils import six
+except ImportError:
+    try:
+        import six
+    except ImportError:
+        raise ImportError("""django-auth-ldap requires a version of six. 
+        This comes bundled with django 1.5. If using an earlier version of django, 
+        please manually install the six library""")
+    
 # Support Django 1.5's custom user models
 try:
     from django.contrib.auth import get_user_model
@@ -102,11 +111,7 @@ class LDAPBackend(object):
         """
         Exclude certain cached properties from pickling.
         """
-        state = filter(
-            lambda (k, v): k not in ['_settings', '_ldap'],
-            self.__dict__.iteritems()
-        )
-
+        state = [k_v1 for k_v1 in six.iteritems(self.__dict__) if k_v1[0] in ['backend', '_username', '_user']]
         return dict(state)
 
     def _get_settings(self):
@@ -139,10 +144,8 @@ class LDAPBackend(object):
         if len(password) == 0 and not self.settings.PERMIT_EMPTY_PASSWORD:
             logger.debug('Rejecting empty password for %s' % username)
             return None
-
         ldap_user = _LDAPUser(self, username=username.strip())
         user = ldap_user.authenticate(password)
-
         return user
 
     def get_user(self, user_id):
@@ -281,11 +284,7 @@ class _LDAPUser(object):
         Most of our properties are cached from the LDAP server. We only want to
         pickle a few crucial things.
         """
-        state = filter(
-            lambda (k, v): k in ['backend', '_username', '_user'],
-            self.__dict__.iteritems()
-        )
-
+        state = [k_v1 for k_v1 in six.iteritems(self.__dict__) if k_v1[0] in ['backend', '_username', '_user']]
         return dict(state)
 
     def _set_authenticated_user(self, user):
@@ -295,6 +294,7 @@ class _LDAPUser(object):
         user.ldap_user = self
         user.ldap_username = self._username
 
+        
     def _get_ldap(self):
         return self.backend.ldap
     ldap = property(_get_ldap)
@@ -320,13 +320,14 @@ class _LDAPUser(object):
             self._get_or_create_user()
 
             user = self._user
-        except self.AuthenticationFailed, e:
-            logger.debug(u"Authentication failed for %s" % self._username)
-        except self.ldap.LDAPError, e:
-            logger.warning(u"Caught LDAPError while authenticating %s: %s",
+
+        except self.AuthenticationFailed as e:
+            logger.debug(six.u("Authentication failed for %s") % self._username)
+        except self.ldap.LDAPError as e:
+            logger.warning(six.u("Caught LDAPError while authenticating %s: %s"),
                 self._username, pprint.pformat(e))
         except Exception:
-            logger.exception(u"Caught Exception while authenticating %s",
+            logger.exception(six.u("Caught Exception while authenticating %s"),
                 self._username)
             raise
 
@@ -343,7 +344,7 @@ class _LDAPUser(object):
             if self.settings.FIND_GROUP_PERMS:
                 try:
                     self._load_group_permissions()
-                except self.ldap.LDAPError, e:
+                except self.ldap.LDAPError as e:
                     logger.warning("Caught LDAPError loading group permissions: %s",
                         pprint.pformat(e))
 
@@ -362,11 +363,11 @@ class _LDAPUser(object):
                 self._get_or_create_user(force_populate=True)
 
             user = self._user
-        except self.ldap.LDAPError, e:
-            logger.warning(u"Caught LDAPError while authenticating %s: %s",
+        except self.ldap.LDAPError as e:
+            logger.warning(six.u("Caught LDAPError while authenticating %s: %s"),
                 self._username, pprint.pformat(e))
-        except Exception, e:
-            logger.error(u"Caught Exception while authenticating %s: %s",
+        except Exception as e:
+            logger.error(six.u("Caught Exception while authenticating %s: %s"),
                 self._username, pprint.pformat(e))
             logger.error(''.join(traceback.format_tb(sys.exc_info()[2])))
             raise
@@ -415,12 +416,12 @@ class _LDAPUser(object):
         Binds to the LDAP server with the user's DN and password. Raises
         AuthenticationFailed on failure.
         """
+        
         if self.dn is None:
             raise self.AuthenticationFailed("Failed to map the username to a DN.")
 
         try:
             sticky = self.settings.BIND_AS_AUTHENTICATING_USER
-
             self._bind_as(self.dn, password, sticky=sticky)
         except self.ldap.INVALID_CREDENTIALS:
             raise self.AuthenticationFailed("User DN/password rejected by LDAP server.")
@@ -559,14 +560,14 @@ class _LDAPUser(object):
         self._populate_user_from_group_memberships()
 
     def _populate_user_from_attributes(self):
-        for field, attr in self.settings.USER_ATTR_MAP.iteritems():
+        for field, attr in six.iteritems(self.settings.USER_ATTR_MAP):
             try:
                 setattr(self._user, field, self.attrs[attr][0])
-            except StandardError:
+            except Exception:
                 logger.warning("%s does not have a value for the attribute %s", self.dn, attr)
 
     def _populate_user_from_group_memberships(self):
-        for field, group_dn in self.settings.USER_FLAGS_BY_GROUP.iteritems():
+        for field, group_dn in six.iteritems(self.settings.USER_FLAGS_BY_GROUP):
             value = self._get_groups().is_member_of(group_dn)
             setattr(self._user, field, value)
 
@@ -599,12 +600,12 @@ class _LDAPUser(object):
         """
         save_profile = False
 
-        for field, attr in self.settings.PROFILE_ATTR_MAP.iteritems():
+        for field, attr in six.iteritems(self.settings.PROFILE_ATTR_MAP):
             try:
                 # user_attrs is a hash of lists of attribute values
                 setattr(profile, field, self.attrs[attr][0])
                 save_profile = True
-            except StandardError:
+            except Exception:
                 logger.warning("%s does not have a value for the attribute %s", self.dn, attr)
 
         return save_profile
@@ -616,7 +617,7 @@ class _LDAPUser(object):
         """
         save_profile = False
 
-        for field, group_dn in self.settings.PROFILE_FLAGS_BY_GROUP.iteritems():
+        for field, group_dn in six.iteritems(self.settings.PROFILE_FLAGS_BY_GROUP):
             value = self._get_groups().is_member_of(group_dn)
             setattr(profile, field, value)
             save_profile = True
@@ -683,8 +684,12 @@ class _LDAPUser(object):
         the life of this object. If False, then the caller only wishes to test
         the credentials, after which the connection will be considered unbound.
         """
-        self._get_connection().simple_bind_s(bind_dn.encode('utf-8'),
-            bind_password.encode('utf-8'))
+        if six.PY3:
+            self._get_connection().simple_bind_s(bind_dn,
+                                                     bind_password)
+        else:
+            self._get_connection().simple_bind_s(bind_dn.encode('utf-8'),
+                                                 bind_password.encode('utf-8'))
 
         self._connection_bound = sticky
 
@@ -695,13 +700,12 @@ class _LDAPUser(object):
         if self._connection is None:
             self._connection = self.ldap.initialize(self.settings.SERVER_URI)
 
-            for opt, value in self.settings.CONNECTION_OPTIONS.iteritems():
+            for opt, value in six.iteritems(self.settings.CONNECTION_OPTIONS):
                 self._connection.set_option(opt, value)
 
             if self.settings.START_TLS:
                 logger.debug("Initiating TLS")
                 self._connection.start_tls_s()
-
         return self._connection
 
 
@@ -810,7 +814,7 @@ class _LDAPUserGroups(object):
         DN for maximum compatibility.
         """
         dn = self._ldap_user.dn.replace(' ', '%20')
-        key = u'auth_ldap.%s.%s.%s' % (self.__class__.__name__, attr_name, dn)
+        key = six.u('auth_ldap.%s.%s.%s') % (self.__class__.__name__, attr_name, dn)
 
         return key
 
@@ -854,6 +858,6 @@ class LDAPSettings(object):
         """
         from django.conf import settings
 
-        for name, default in self.defaults.iteritems():
+        for name, default in six.iteritems(self.defaults):
             value = getattr(settings, prefix + name, default)
             setattr(self, name, value)

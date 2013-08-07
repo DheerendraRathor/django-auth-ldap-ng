@@ -33,3 +33,5 @@ INSTALLED_APPS = (
 
     'django_auth_ldap',
 )
+
+TEMPLATE_DEBUG = True

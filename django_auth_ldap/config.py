@@ -38,6 +38,15 @@ except NameError:
 import logging
 import pprint
 
+try:
+    from django.utils import six
+except ImportError:
+    try:
+        import six
+    except ImportError:
+        raise ImportError("""django-auth-ldap requires a version of six. 
+        This comes bundled with django 1.5. If using an earlier version of django, 
+        please manually install the six library""")
 
 class _LDAPConfig(object):
     """
@@ -70,7 +79,7 @@ class _LDAPConfig(object):
 
         # Apply global LDAP options once
         if (not cls._ldap_configured) and (global_options is not None):
-            for opt, value in global_options.iteritems():
+            for opt, value in six.iteritems(global_options):
                 cls.ldap.set_option(opt, value)
 
             cls._ldap_configured = True
@@ -105,7 +114,7 @@ class LDAPSearch(object):
     documented for configuration purposes. Internal clients may use the other
     methods to refine and execute the search.
     """
-    def __init__(self, base_dn, scope, filterstr=u'(objectClass=*)'):
+    def __init__(self, base_dn, scope, filterstr=six.u('(objectClass=*)')):
         """
         These parameters are the same as the first three parameters to
         ldap.search_s.
@@ -123,12 +132,12 @@ class LDAPSearch(object):
         """
         term_strings = [self.filterstr]
 
-        for name, value in term_dict.iteritems():
+        for name, value in six.iteritems(term_dict):
             if escape:
                 value = self.ldap.filter.escape_filter_chars(value)
-            term_strings.append(u'(%s=%s)' % (name, value))
+            term_strings.append(six.u('(%s=%s)') % (name, value))
 
-        filterstr = u'(&%s)' % ''.join(term_strings)
+        filterstr = six.u('(&%s)') % ''.join(term_strings)
 
         return self.__class__(self.base_dn, self.scope, filterstr)
 
@@ -138,7 +147,7 @@ class LDAPSearch(object):
         string. The caller is responsible for passing in a properly escaped
         string.
         """
-        filterstr = u'(&%s%s)' % (self.filterstr, filterstr)
+        filterstr = six.u('(&%s%s)') % (self.filterstr, filterstr)
 
         return self.__class__(self.base_dn, self.scope, filterstr)
 
@@ -153,11 +162,16 @@ class LDAPSearch(object):
         """
         try:
             filterstr = self.filterstr % filterargs
-            results = connection.search_s(self.base_dn.encode('utf-8'),
-                self.scope, filterstr.encode('utf-8'))
-        except self.ldap.LDAPError, e:
+            if six.PY3:
+                results = connection.search_s(self.base_dn,
+                                              self.scope, filterstr)
+            else:
+                results = connection.search_s(self.base_dn.encode('utf-8'),
+                                              self.scope, filterstr.encode('utf-8'))
+                
+        except self.ldap.LDAPError as e:
             results = []
-            logger.error(u"search_s('%s', %d, '%s') raised %s" %
+            logger.error(six.u("search_s('%s', %d, '%s') raised %s") %
                 (self.base_dn, self.scope, filterstr, pprint.pformat(e)))
 
         return self._process_results(results)
@@ -169,11 +183,16 @@ class LDAPSearch(object):
         """
         try:
             filterstr = self.filterstr % filterargs
-            msgid = connection.search(self.base_dn.encode('utf-8'),
-                self.scope, filterstr.encode('utf-8'))
-        except self.ldap.LDAPError, e:
+            if six.PY3:
+                msgid = connection.search(self.base_dn,
+                                          self.scope, filterstr)
+            else:
+                msgid = connection.search(self.base_dn.encode('utf-8'),
+                                          self.scope, filterstr.encode('utf-8'))
+            
+        except self.ldap.LDAPError as e:
             msgid = None
-            logger.error(u"search('%s', %d, '%s') raised %s" %
+            logger.error(six.u("search('%s', %d, '%s') raised %s") %
                 (self.base_dn, self.scope, filterstr, pprint.pformat(e)))
 
         return msgid
@@ -186,9 +205,9 @@ class LDAPSearch(object):
             kind, results = connection.result(msgid)
             if kind != self.ldap.RES_SEARCH_RESULT:
                 results = []
-        except self.ldap.LDAPError, e:
+        except self.ldap.LDAPError as e:
             results = []
-            logger.error(u"result(%d) raised %s" % (msgid, pprint.pformat(e)))
+            logger.error(six.u("result(%d) raised %s") % (msgid, pprint.pformat(e)))
 
         return self._process_results(results)
 
@@ -197,14 +216,17 @@ class LDAPSearch(object):
         Returns a sanitized copy of raw LDAP results. This scrubs out
         references, decodes utf8, normalizes DNs, etc.
         """
-        results = filter(lambda r: r[0] is not None, results)
-        results = _DeepStringCoder('utf-8').decode(results)
+        results = [r for r in results if r[0] is not None]
+        if six.PY3:
+            results = results
+        else:
+            results = _DeepStringCoder('utf-8').decode(results)
 
         # The normal form of a DN is lower case.
-        results = map(lambda r: (r[0].lower(), r[1]), results)
-
+        results = [(r[0].lower(), r[1]) for r in results]
+        
         result_dns = [result[0] for result in results]
-        logger.debug(u"search_s('%s', %d, '%s') returned %d objects: %s" %
+        logger.debug(six.u("search_s('%s', %d, '%s') returned %d objects: %s") %
             (self.base_dn, self.scope, self.filterstr, len(result_dns), "; ".join(result_dns)))
 
         return results
@@ -227,7 +249,7 @@ class LDAPSearchUnion(object):
             result = search._results(connection, msgid)
             results.update(dict(result))
 
-        return results.items()
+        return list(results.items())
 
 
 class _DeepStringCoder(object):
@@ -264,7 +286,7 @@ class _DeepStringCoder(object):
         # for search results.
         decoded = self.ldap.cidict.cidict()
 
-        for k, v in value.iteritems():
+        for k, v in six.iteritems(value):
             decoded[self.decode(k)] = self.decode(v)
 
         return decoded
@@ -351,7 +373,7 @@ class PosixGroupType(LDAPGroupType):
             user_uid = ldap_user.attrs['uid'][0]
             user_gid = ldap_user.attrs['gidNumber'][0]
 
-            filterstr = u'(|(gidNumber=%s)(memberUid=%s))' % (
+            filterstr = six.u('(|(gidNumber=%s)(memberUid=%s))') % (
                 self.ldap.filter.escape_filter_chars(user_gid),
                 self.ldap.filter.escape_filter_chars(user_uid)
             )
@@ -373,13 +395,19 @@ class PosixGroupType(LDAPGroupType):
             user_gid = ldap_user.attrs['gidNumber'][0]
 
             try:
-                is_member = ldap_user.connection.compare_s(group_dn.encode('utf-8'), 'memberUid', user_uid.encode('utf-8'))
+                if six.PY3:
+                    is_member = ldap_user.connection.compare_s(group_dn, 'memberUid', user_uid)
+                else:
+                    is_member = ldap_user.connection.compare_s(group_dn.encode('utf-8'), 'memberUid', user_uid.encode('utf-8'))
             except self.ldap.NO_SUCH_ATTRIBUTE:
                 is_member = False
 
             if not is_member:
                 try:
-                    is_member = ldap_user.connection.compare_s(group_dn.encode('utf-8'), 'gidNumber', user_gid.encode('utf-8'))
+                    if six.PY3:
+                        is_member = ldap_user.connection.compare_s(group_dn, 'gidNumber', user_gid)
+                    else:
+                        is_member = ldap_user.connection.compare_s(group_dn.encode('utf-8'), 'gidNumber', user_gid.encode('utf-8'))
                 except self.ldap.NO_SUCH_ATTRIBUTE:
                     is_member = False
         except (KeyError, IndexError):
@@ -409,11 +437,19 @@ class MemberDNGroupType(LDAPGroupType):
 
     def is_member(self, ldap_user, group_dn):
         try:
-            result = ldap_user.connection.compare_s(
-                group_dn.encode('utf-8'),
-                self.member_attr.encode('utf-8'),
-                ldap_user.dn.encode('utf-8')
-            )
+            if six.PY3:
+                result = ldap_user.connection.compare_s(
+                    group_dn,
+                    self.member_attr,
+                    ldap_user.dn
+                )
+            else:
+                result = ldap_user.connection.compare_s(
+                    group_dn.encode('utf-8'),
+                    self.member_attr.encode('utf-8'),
+                    ldap_user.dn.encode('utf-8')
+                )
+                
         except self.ldap.NO_SUCH_ATTRIBUTE:
             result = 0
 
@@ -457,17 +493,16 @@ class NestedMemberDNGroupType(LDAPGroupType):
             # never to search with the same member DN twice.
             member_dn_set = set(new_group_info_map.keys()) - handled_dn_set
 
-        return group_info_map.values()
+        return list(group_info_map.values())
 
     def find_groups_with_any_member(self, member_dn_set, group_search, connection):
         terms = [
-            u"(%s=%s)" % (self.member_attr, self.ldap.filter.escape_filter_chars(dn))
+            six.u("(%s=%s)") % (self.member_attr, self.ldap.filter.escape_filter_chars(dn))
             for dn in member_dn_set
         ]
 
-        filterstr = u"(|%s)" % "".join(terms)
+        filterstr = six.u("(|%s)") % "".join(terms)
         search = group_search.search_with_additional_term_string(filterstr)
-
         return search.execute(connection)
 
 
