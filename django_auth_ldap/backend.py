@@ -355,13 +355,12 @@ class _LDAPUser(object):
         Populates the Django user object using the default bind credentials.
         """
         user = None
-
         try:
             # self.attrs will only be non-None if we were able to load this user
             # from the LDAP directory, so this filters out nonexistent users.
             if self.attrs is not None:
                 self._get_or_create_user(force_populate=True)
-
+                
             user = self._user
         except self.ldap.LDAPError as e:
             logger.warning(six.u("Caught LDAPError while authenticating %s: %s"),
@@ -416,7 +415,7 @@ class _LDAPUser(object):
         Binds to the LDAP server with the user's DN and password. Raises
         AuthenticationFailed on failure.
         """
-        
+
         if self.dn is None:
             raise self.AuthenticationFailed("Failed to map the username to a DN.")
 
@@ -462,7 +461,6 @@ class _LDAPUser(object):
         search = self.settings.USER_SEARCH
         if search is None:
             raise ImproperlyConfigured('AUTH_LDAP_USER_SEARCH must be an LDAPSearch instance.')
-
         results = search.execute(self.connection, {'user': self._username})
         if results is not None and len(results) == 1:
             (self._user_dn, self._user_attrs) = results[0]
@@ -698,10 +696,10 @@ class _LDAPUser(object):
         Returns our cached LDAPObject, which may or may not be bound.
         """
         if self._connection is None:
-            self._connection = self.ldap.initialize(self.settings.SERVER_URI)
-
             for opt, value in six.iteritems(self.settings.CONNECTION_OPTIONS):
-                self._connection.set_option(opt, value)
+                self.ldap.set_option(opt, value)
+
+            self._connection = self.ldap.initialize(self.settings.SERVER_URI)
 
             if self.settings.START_TLS:
                 logger.debug("Initiating TLS")
