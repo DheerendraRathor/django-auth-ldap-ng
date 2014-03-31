@@ -1,0 +1,12 @@
+syntax: glob
+
+*.pyc
+*.coverage
+django_auth_ldap.egg-info
+
+syntax: regexp
+
+^build/
+^dist/
+^docs/build/
+^MANIFEST$
