@@ -47,10 +47,7 @@ try:
 except ImportError:  # Django < 1.5
     from django.utils.encoding import smart_str as force_str
 
-try:
-    from django.utils import unittest
-except ImportError:
-    import unittest
+import unittest
 
 try:
     from django.test.utils import override_settings

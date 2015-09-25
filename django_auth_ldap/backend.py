@@ -56,23 +56,17 @@ import django.conf
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 import django.dispatch
-try:
-    from django.utils.encoding import force_str
-except ImportError:  # Django < 1.5
-    from django.utils.encoding import smart_str as force_str
+from django.apps import apps
 
-# Django 1.7 Removed custom profiles
-try:
-    from django.contrib.auth.models import SiteProfileNotAvailable
-except ImportError:
-    SiteProfileNotAvailable = Exception
+from django.utils.encoding import force_str
 
 # Support Django 1.5's custom user models
 try:
     from django.contrib.auth import get_user_model
+
     get_user_username = lambda u: u.get_username()
 except ImportError:
-    get_user_model = lambda: User                                        # noqa
+    get_user_model = lambda: User  # noqa
     get_user_username = lambda u: u.username
 
 # Small compatibility hack
@@ -82,7 +76,6 @@ except NameError:
     basestring = str
 
 from django_auth_ldap.config import _LDAPConfig, LDAPSearch
-
 
 logger = _LDAPConfig.get_logger()
 
@@ -144,6 +137,7 @@ class LDAPBackend(object):
             self._ldap = _LDAPConfig.get_ldap(options)
 
         return self._ldap
+
     ldap = property(_get_ldap)
 
     def get_user_model(self):
@@ -250,6 +244,7 @@ class _LDAPUser(object):
     self.backend is a reference back to the LDAPBackend instance, which we need
     to access the ldap module and any hooks that a subclass has overridden.
     """
+
     class AuthenticationFailed(Exception):
         pass
 
@@ -316,10 +311,12 @@ class _LDAPUser(object):
 
     def _get_ldap(self):
         return self.backend.ldap
+
     ldap = property(_get_ldap)
 
     def _get_settings(self):
         return self.backend.settings
+
     settings = property(_get_settings)
 
     #
@@ -411,6 +408,7 @@ class _LDAPUser(object):
             self._load_user_dn()
 
         return self._user_dn
+
     dn = property(_get_user_dn)
 
     def _get_user_attrs(self):
@@ -418,14 +416,17 @@ class _LDAPUser(object):
             self._load_user_attrs()
 
         return self._user_attrs
+
     attrs = property(_get_user_attrs)
 
     def _get_group_dns(self):
         return self._get_groups().get_group_dns()
+
     group_dns = property(_get_group_dns)
 
     def _get_group_names(self):
         return self._get_groups().get_group_names()
+
     group_names = property(_get_group_names)
 
     def _get_bound_connection(self):
@@ -433,6 +434,7 @@ class _LDAPUser(object):
             self._bind()
 
         return self._get_connection()
+
     connection = property(_get_bound_connection)
 
     #
@@ -602,16 +604,17 @@ class _LDAPUser(object):
             setattr(self._user, field, value)
 
     def _should_populate_profile(self):
-        return ((django.VERSION < (1, 7)) and
-                (getattr(django.conf.settings, 'AUTH_PROFILE_MODULE', None) is not None) and
-                hasattr(self._user, 'get_profile'))
+        return ((django.VERSION >= (1, 7)) and
+                (getattr(django.conf.settings, 'AUTH_PROFILE_MODULE', None) is not None))
 
     def _populate_and_save_user_profile(self):
         """
         Populates a User profile object with fields from the LDAP directory.
         """
         try:
-            profile = self._user.get_profile()
+            app_label, class_name = django.conf.settings.AUTH_PROFILE_MODULE.split('.')
+            profile_model = apps.get_model(app_label, class_name)
+            profile, created = profile_model.objects.get_or_create(user=self._user)
             save_profile = False
 
             logger.debug("Populating Django user profile for %s", get_user_username(self._user))
@@ -625,8 +628,10 @@ class _LDAPUser(object):
 
             if save_profile:
                 profile.save()
-        except (SiteProfileNotAvailable, ObjectDoesNotExist):
+        except ObjectDoesNotExist:
             logger.debug("Django user %s does not have a profile to populate", get_user_username(self._user))
+        except LookupError:
+            logger.debug('User Profile model defined in settings.AUTH_PROFILE_MODULE is invalid')
 
     def _populate_profile_from_attributes(self, profile):
         """
@@ -756,6 +761,7 @@ class _LDAPUserGroups(object):
     """
     Represents the set of groups that a user belongs to.
     """
+
     def __init__(self, ldap_user):
         self.settings = ldap_user.settings
         self._ldap_user = ldap_user
