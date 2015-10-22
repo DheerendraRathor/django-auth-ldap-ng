@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 
+import sys
+
 from setuptools import setup
+
+PY3 = (sys.version_info[0] == 3)
 
 setup(
     name="django-auth-ldap-ng",
-    version="1.0.0",
+    version="1.5.0",
     description="Django LDAP authentication backend",
     long_description=open('README').read(),
     url="https://bitbucket.org/DheerendraRathor/django-auth-ldap",
-    author="Peter Sagerson",
-    author_email="psagers.pypi@ignorare.net",
+    author="Dheerendra Rathor",
+    author_email="dheeru.rathor14@gmail.com",
     license="BSD",
     packages=["django_auth_ldap"],
     classifiers=[
@@ -21,6 +25,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Framework :: Django",
         "Intended Audience :: Developers",
         "Intended Audience :: System Administrators",
@@ -32,12 +37,12 @@ setup(
     keywords=["django", "ldap", "authentication", "auth"],
     install_requires=[
         "django",
-        "python-ldap >= 2.0",
+        "pyldap" if PY3 else "python-ldap >= 2.0",
     ],
     setup_requires=[
         "setuptools >= 0.6c11",
     ],
     tests_require=[
-        "mockldap >= 0.2",
+        "mockldap >= 0.2.6",
     ]
 )
