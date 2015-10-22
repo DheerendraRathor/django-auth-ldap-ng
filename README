@@ -3,7 +3,7 @@ service. Configuration can be as simple as a single distinguished name template,
 but there are many rich configuration options for working with users, groups,
 and permissions.
 
-This version is supported on Python 2.6, 2.7, 3.3, and 3.4; and Django >= 1.3.
+This version is supported on Python 2.6, 2.7, 3.4 and 3.5; and Django >= 1.7.
 Under Python 2, it requires `python-ldap
 <https://pypi.python.org/pypi/python-ldap>`_ >= 2.0; under Python 3, it uses
 `pyldap <https://pypi.python.org/pypi/pyldap>`_.
@@ -16,6 +16,9 @@ configuration, just to whet your appetite::
     from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
 
 
+    # Specify User Profile Model if profile needs to be populated (Optional)
+    AUTH_PROFILE_MODULE = 'account.UserProfile'
+    
     # Baseline configuration.
     AUTH_LDAP_SERVER_URI = "ldap://ldap.example.com"
 
@@ -48,6 +51,19 @@ configuration, just to whet your appetite::
         "is_staff": "cn=staff,ou=django,ou=groups,dc=example,dc=com",
         "is_superuser": "cn=superuser,ou=django,ou=groups,dc=example,dc=com"
     }
+    
+    # Populate user profil model from LDAP Directory
+    AUTH_LDAP_PROFILE_ATTR_MAP = {
+        'description': 'description',
+        'type': 'employeeType',
+    }
+    
+    # Populate profile fields by matching if regex matches the user DN
+    AUTH_LDAP_PROFILE_FLAGS_BY_DN_REGEX = {
+        "is_awesome": r"ou=awesome,ou=people,dc=example,dc=com",
+        "is_teacher": r"ou=faculty,dc=example,dc=com",
+    }
+        
 
     # Use LDAP group membership to calculate group permissions.
     AUTH_LDAP_FIND_GROUP_PERMS = True
