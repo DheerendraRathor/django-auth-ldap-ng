@@ -3,11 +3,11 @@
 from setuptools import setup
 
 setup(
-    name="django-auth-ldap",
-    version="1.2.6",
+    name="django-auth-ldap-ng",
+    version="1.0.0",
     description="Django LDAP authentication backend",
     long_description=open('README').read(),
-    url="http://bitbucket.org/psagers/django-auth-ldap/",
+    url="https://bitbucket.org/DheerendraRathor/django-auth-ldap",
     author="Peter Sagerson",
     author_email="psagers.pypi@ignorare.net",
     license="BSD",
@@ -17,7 +17,6 @@ setup(
         "Environment :: Web Environment",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.3",

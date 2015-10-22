@@ -648,7 +648,6 @@ class LDAPTest(TestCase):
 
         backend.populate_user.disconnect(handle_populate_user)
 
-    @unittest.skipIf(django.VERSION >= (1, 7), "Skip profile tests in Django>=1.7")
     def test_signal_populate_user_profile(self):
         settings.AUTH_PROFILE_MODULE = 'django_auth_ldap.TestProfile'
 
@@ -663,12 +662,14 @@ class LDAPTest(TestCase):
         def handle_populate_user_profile(sender, **kwargs):
             self.assertTrue('profile' in kwargs and 'ldap_user' in kwargs)
             kwargs['profile'].populated = True
+            kwargs['profile'].save()
 
         django.db.models.signals.post_save.connect(handle_user_saved, sender=User)
         backend.populate_user_profile.connect(handle_populate_user_profile)
         user = self.backend.authenticate(username='alice', password='password')
 
-        self.assertTrue(user.get_profile().populated)
+        user.testprofile.refresh_from_db()
+        self.assertTrue(user.testprofile.populated)
 
         backend.populate_user_profile.disconnect(handle_populate_user_profile)
         django.db.models.signals.post_save.disconnect(handle_user_saved, sender=User)
@@ -900,7 +901,6 @@ class LDAPTest(TestCase):
 
         self.assertTrue(not nobody.is_active)
 
-    @unittest.skipIf(django.VERSION >= (1, 7), "Skip profile tests in Django>=1.7")
     def test_profile_flags(self):
         settings.AUTH_PROFILE_MODULE = 'django_auth_ldap.TestProfile'
 
@@ -922,8 +922,34 @@ class LDAPTest(TestCase):
         alice = self.backend.authenticate(username='alice', password='password')
         bob = self.backend.authenticate(username='bob', password='password')
 
-        self.assertTrue(alice.get_profile().is_special)
-        self.assertTrue(not bob.get_profile().is_special)
+        alice.testprofile.refresh_from_db()
+        bob.testprofile.refresh_from_db()
+
+        self.assertTrue(alice.testprofile.is_special)
+        self.assertTrue(not bob.testprofile.is_special)
+
+    def test_profile_flags_by_dn_regex(self):
+        settings.AUTH_PROFILE_MODULE = 'django_auth_ldap.TestProfile'
+
+        self._init_settings(
+            USER_DN_TEMPLATE='uid=%(user)s,ou=people,o=test',
+            PROFILE_FLAGS_BY_DN_REGEX={
+                'is_alice': r'uid=alice,ou=people,o=test',
+                'is_bob': r'uid=bob,ou=people,o=test',
+            }
+        )
+
+        alice = self.backend.authenticate(username='alice', password='password')
+        bob = self.backend.authenticate(username='bob', password='password')
+
+        alice.testprofile.refresh_from_db()
+        bob.testprofile.refresh_from_db()
+
+        self.assertTrue(alice.testprofile.is_alice)
+        self.assertFalse(alice.testprofile.is_bob)
+        self.assertFalse(bob.testprofile.is_alice)
+        self.assertTrue(bob.testprofile.is_bob)
+
 
     def test_dn_group_permissions(self):
         self._init_settings(

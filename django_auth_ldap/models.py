@@ -30,3 +30,5 @@ class TestProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL)
     is_special = models.BooleanField(default=False)
     populated = models.BooleanField(default=False)
+    is_alice = models.BooleanField(default=False)
+    is_bob = models.BooleanField(default=False)

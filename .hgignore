@@ -2,7 +2,8 @@ syntax: glob
 
 *.pyc
 *.coverage
-django_auth_ldap.egg-info
+*.egg-info
+.tox
 
 syntax: regexp
 

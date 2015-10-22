@@ -77,6 +77,8 @@ except NameError:
 
 from django_auth_ldap.config import _LDAPConfig, LDAPSearch
 
+import re
+
 logger = _LDAPConfig.get_logger()
 
 
@@ -620,6 +622,7 @@ class _LDAPUser(object):
             logger.debug("Populating Django user profile for %s", get_user_username(self._user))
 
             save_profile = self._populate_profile_from_attributes(profile) or save_profile
+            save_profile = self._populate_profile_flags_from_dn_regex(profile) or save_profile
             save_profile = self._populate_profile_from_group_memberships(profile) or save_profile
 
             signal_responses = populate_user_profile.send(self.backend.__class__, profile=profile, ldap_user=self)
@@ -647,6 +650,21 @@ class _LDAPUser(object):
                 save_profile = True
             except Exception:
                 logger.warning("%s does not have a value for the attribute %s", self.dn, attr)
+
+        return save_profile
+
+    def _populate_profile_flags_from_dn_regex(self, profile):
+        """
+        Populate the given profile object flags from AUTH_LDAP_PROFILE_FLAGS_BY_DN_REGEX.
+        Returns True if the profile was modified
+        """
+        save_profile = True
+        for field, regex in self.settings.PROFILE_FLAGS_BY_DN_REGEX.items():
+            field_value = False
+            if re.search(regex, self._get_user_dn(), re.IGNORECASE):
+                field_value = True
+            setattr(profile, field, field_value)
+            save_profile = True
 
         return save_profile
 
@@ -893,6 +911,7 @@ class LDAPSettings(object):
         'PERMIT_EMPTY_PASSWORD': False,
         'PROFILE_ATTR_MAP': {},
         'PROFILE_FLAGS_BY_GROUP': {},
+        'PROFILE_FLAGS_BY_DN_REGEX': {},
         'REQUIRE_GROUP': None,
         'SERVER_URI': 'ldap://localhost',
         'START_TLS': False,
