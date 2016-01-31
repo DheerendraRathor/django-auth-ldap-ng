@@ -8,7 +8,7 @@ PY3 = (sys.version_info[0] == 3)
 
 setup(
     name="django-auth-ldap-ng",
-    version="1.5.0",
+    version="1.6.0",
     description="Django LDAP authentication backend",
     long_description=open('README').read(),
     url="https://bitbucket.org/DheerendraRathor/django-auth-ldap",

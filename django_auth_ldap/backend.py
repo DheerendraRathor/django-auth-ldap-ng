@@ -590,6 +590,8 @@ class _LDAPUser(object):
         """
         self._populate_user_from_attributes()
         self._populate_user_from_group_memberships()
+        self._populate_user_from_dn_regex()
+        self._populate_user_from_dn_regex_negation()
 
     def _populate_user_from_attributes(self):
         for field, attr in self.settings.USER_ATTR_MAP.items():
@@ -604,6 +606,28 @@ class _LDAPUser(object):
                 group_dns = [group_dns]
             value = any(self._get_groups().is_member_of(dn) for dn in group_dns)
             setattr(self._user, field, value)
+
+    def _populate_user_from_dn_regex(self):
+        """
+        Populate the given profile object flags from AUTH_LDAP_PROFILE_FLAGS_BY_DN_REGEX.
+        Returns True if the profile was modified
+        """
+        for field, regex in self.settings.USER_FLAGS_BY_DN_REGEX.items():
+            field_value = False
+            if re.search(regex, self._get_user_dn(), re.IGNORECASE):
+                field_value = True
+            setattr(self._user, field, field_value)
+
+    def _populate_user_from_dn_regex_negation(self):
+        """
+        Populate the given profile object flags from AUTH_LDAP_PROFILE_FLAGS_BY_DN_REGEX.
+        Returns True if the profile was modified
+        """
+        for field, regex in self.settings.USER_FLAGS_BY_DN_REGEX_NEGATION.items():
+            field_value = True
+            if re.search(regex, self._get_user_dn(), re.IGNORECASE):
+                field_value = False
+            setattr(self._user, field, field_value)
 
     def _should_populate_profile(self):
         return ((django.VERSION >= (1, 7)) and
@@ -918,6 +942,8 @@ class LDAPSettings(object):
         'USER_ATTR_MAP': {},
         'USER_DN_TEMPLATE': None,
         'USER_FLAGS_BY_GROUP': {},
+        'USER_FLAGS_BY_DN_REGEX': {},
+        'USER_FLAGS_BY_DN_REGEX_NEGATION': {},
         'USER_SEARCH': None,
     }
 
