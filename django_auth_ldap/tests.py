@@ -242,11 +242,14 @@ class LDAPTest(TestCase):
     #
 
     def test_options(self):
-        self._init_settings(
-            USER_DN_TEMPLATE='uid=%(user)s,ou=people,o=test',
-            CONNECTION_OPTIONS={'opt1': 'value1'}
-        )
-        self.backend.authenticate(username='alice', password='password')
+        self.backend.authenticate(username='alice',
+                                  password='password',
+                                  settings={
+                                      'USER_DN_TEMPLATE': 'uid=%(user)s,ou=people,o=test',
+                                      'CONNECTION_OPTIONS': {
+                                          'opt1': 'value1',
+                                      },
+                                  })
 
         self.assertEqual(self.ldapobj.get_option('opt1'), 'value1')
 

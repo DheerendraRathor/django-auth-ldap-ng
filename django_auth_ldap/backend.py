@@ -69,15 +69,11 @@ except ImportError:
     get_user_model = lambda: User  # noqa
     get_user_username = lambda u: u.username
 
-# Small compatibility hack
-try:
-    basestring
-except NameError:
-    basestring = str
 
 from django_auth_ldap.config import _LDAPConfig, LDAPSearch
 
 import re
+from django.utils import six
 
 logger = _LDAPConfig.get_logger()
 
@@ -153,12 +149,13 @@ class LDAPBackend(object):
     #
     # The Django auth backend API
     #
-
     def authenticate(self, username, password, **kwargs):
         if len(password) == 0 and not self.settings.PERMIT_EMPTY_PASSWORD:
             logger.debug('Rejecting empty password for %s' % username)
             return None
 
+        settings = kwargs.pop('settings', {})
+        self.default_settings.update(settings)
         ldap_user = _LDAPUser(self, username=username.strip())
         user = ldap_user.authenticate(password)
 
@@ -478,7 +475,7 @@ class _LDAPUser(object):
             self._search_for_user_dn()
 
     def _using_simple_bind_mode(self):
-        return (self.settings.USER_DN_TEMPLATE is not None)
+        return self.settings.USER_DN_TEMPLATE is not None
 
     def _construct_simple_user_dn(self):
         template = self.settings.USER_DN_TEMPLATE
@@ -602,7 +599,7 @@ class _LDAPUser(object):
 
     def _populate_user_from_group_memberships(self):
         for field, group_dns in self.settings.USER_FLAGS_BY_GROUP.items():
-            if isinstance(group_dns, basestring):
+            if isinstance(group_dns, six.string_types):
                 group_dns = [group_dns]
             value = any(self._get_groups().is_member_of(dn) for dn in group_dns)
             setattr(self._user, field, value)
@@ -630,7 +627,7 @@ class _LDAPUser(object):
             setattr(self._user, field, field_value)
 
     def _should_populate_profile(self):
-        return ((django.VERSION >= (1, 7)) and
+        return (django.VERSION >= (1, 7) and
                 (getattr(django.conf.settings, 'AUTH_PROFILE_MODULE', None) is not None))
 
     def _populate_and_save_user_profile(self):
@@ -700,7 +697,7 @@ class _LDAPUser(object):
         save_profile = False
 
         for field, group_dns in self.settings.PROFILE_FLAGS_BY_GROUP.items():
-            if isinstance(group_dns, basestring):
+            if isinstance(group_dns, six.string_types):
                 group_dns = [group_dns]
             value = any(self._get_groups().is_member_of(dn) for dn in group_dns)
             setattr(profile, field, value)
@@ -947,11 +944,13 @@ class LDAPSettings(object):
         'USER_SEARCH': None,
     }
 
-    def __init__(self, prefix='AUTH_LDAP_', defaults={}):
+    def __init__(self, prefix='AUTH_LDAP_', defaults=None):
         """
         Loads our settings from django.conf.settings, applying defaults for any
         that are omitted.
         """
+        if defaults is None:
+            defaults = {}
         defaults = dict(self.defaults, **defaults)
 
         for name, default in defaults.items():
